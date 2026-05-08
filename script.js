@@ -15,16 +15,19 @@ const INITIAL_DATA = {
         isLoggedIn: false
     },
     challenges: [
-        { id: 1, title: "Plastic at Sunset Beach", location: "Sunset Beach", status: "active", image: "https://images.unsplash.com/photo-1618477461853-cf6ed80faba5?auto=format&fit=crop&w=600&q=80", points: 25, lat: 15.35, lon: 73.76 },
-        { id: 2, title: "City Park Debris", location: "Central Park", status: "active", image: "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=600&q=80", points: 30, lat: 15.39, lon: 73.81 },
-        { id: 3, title: "River Side Trash", location: "Zuari River", status: "completed", image: "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=600&q=80", points: 20, lat: 15.41, lon: 73.85 }
+        { id: 1, title: "BC Road Junction Cleanup", location: "BC Road, Bantwal", status: "active", image: "https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=600&q=80", points: 50, lat: 12.89, lon: 75.03 },
+        { id: 2, title: "Bantwal Market Drive", location: "Bantwal Market", status: "active", image: "https://images.unsplash.com/photo-1488459711615-228751460f80?auto=format&fit=crop&w=600&q=80", points: 30, lat: 12.88, lon: 75.04 },
+        { id: 3, title: "Adyar Riverside Clean", location: "Adyar, Netravati", status: "completed", image: "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=600&q=80", points: 20, lat: 12.87, lon: 74.92 },
+        { id: 4, title: "Farangipete Roadside", location: "Farangipete", status: "active", image: "https://images.unsplash.com/photo-1621451537084-482c73073a0f?auto=format&fit=crop&w=600&q=80", points: 45, lat: 12.88, lon: 74.96 },
+        { id: 5, title: "Thumbe Dam Viewpoint", location: "Thumbe", status: "active", image: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=600&q=80", points: 60, lat: 12.88, lon: 74.98 },
+        { id: 6, title: "Bantwal Bypass Drive", location: "Bantwal Bypass", status: "active", image: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=600&q=80", points: 55, lat: 12.89, lon: 75.05 }
     ],
     leaderboard: [
-        { rank: 1, name: "EcoSentinel", cleanups: 45, points: 1200 },
-        { rank: 2, name: "PlanetGuardian", cleanups: 38, points: 950 },
-        { rank: 3, name: "GreenPath", cleanups: 32, points: 820 },
-        { rank: 4, name: "WasteWarrior", cleanups: 28, points: 710 },
-        { rank: 5, name: "Eco Hero", cleanups: 5, points: 450, isUser: true }
+        { rank: 1, name: "Karthik", cleanups: 45, points: 5200 },
+        { rank: 2, name: "Dhanush", cleanups: 38, points: 4950 },
+        { rank: 3, name: "Aditiya", cleanups: 32, points: 3820 },
+        { rank: 4, name: "Likhil", cleanups: 28, points: 3710 },
+        { rank: 5, name: "Dheeraj", cleanups: 15, points: 3200, isUser: true }
     ],
     badges: [
         { name: "Starter Hero", icon: "https://cdn-icons-png.flaticon.com/512/2913/2913564.png", unlocked: true, desc: "Joined the movement" },
@@ -64,6 +67,28 @@ document.addEventListener('DOMContentLoaded', () => {
             window.location.href = 'index.html';
             return;
         }
+
+        // Force update leaderboard for existing users
+        if (appState.leaderboard && appState.leaderboard[0].name === "EcoSentinel") {
+            appState.leaderboard = INITIAL_DATA.leaderboard;
+            saveState();
+        }
+
+        // Sync new challenges or update coordinates/titles for existing ones
+        INITIAL_DATA.challenges.forEach(initialC => {
+            const existingIndex = appState.challenges.findIndex(c => c.id === initialC.id);
+            if (existingIndex === -1) {
+                appState.challenges.push(initialC);
+            } else {
+                // Update all fields to match latest regional data
+                appState.challenges[existingIndex].title = initialC.title;
+                appState.challenges[existingIndex].location = initialC.location;
+                appState.challenges[existingIndex].lat = initialC.lat;
+                appState.challenges[existingIndex].lon = initialC.lon;
+                appState.challenges[existingIndex].image = initialC.image;
+            }
+        });
+        saveState();
 
         initApp();
     } catch (error) {
@@ -164,65 +189,96 @@ function renderDashboard() {
 }
 
 function initMap() {
+    if (typeof L === 'undefined') {
+        console.error("Leaflet library not loaded yet.");
+        setTimeout(initMap, 500); // Try again shortly
+        return;
+    }
     const mapContainer = document.getElementById('map');
-    if (!mapContainer) return;
+    if (!mapContainer || window.ecoMap) return;
 
-    // Initialize map
-    const map = L.map('map').setView([15.38, 73.80], 12);
+    // Initialize map centered on Bantwal/BC Road
+    window.ecoMap = L.map('map').setView([12.89, 75.03], 13);
+    const map = window.ecoMap;
 
     // Satellite View (Esri World Imagery)
-    const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Tiles &copy; Esri'
     }).addTo(map);
 
-    // Add Labels on top (Esri World Transportation/Labels)
+    // Add Labels on top
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Labels &copy; Esri'
     }).addTo(map);
 
-    // Add challenge markers
+    // Add high-visibility task markers
+    console.log(`Rendering ${appState.challenges.length} challenges to map`);
     appState.challenges.forEach(c => {
         if (c.lat && c.lon) {
-            const marker = L.marker([c.lat, c.lon]).addTo(map);
+            const taskIcon = L.divIcon({
+                html: `
+                    <div class="task-marker-container">
+                        <div class="task-pulse"></div>
+                        <div class="task-marker-icon">
+                            <i class="fas fa-trash-alt"></i>
+                        </div>
+                    </div>
+                `,
+                className: 'custom-task-icon',
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+            });
+
+            const marker = L.marker([c.lat, c.lon], { icon: taskIcon }).addTo(map);
             marker.bindPopup(`
-                <div style="width: 150px;">
-                    <img src="${c.image}" style="width: 100%; border-radius: 8px; margin-bottom: 5px;">
-                    <h4 style="margin: 0; font-size: 0.9rem;">${c.title}</h4>
-                    <p style="margin: 5px 0; font-size: 0.75rem; color: #666;">${c.location}</p>
-                    <span style="font-size: 0.75rem; font-weight: 700; color: var(--primary);">+${c.points} PTS</span>
+                <div style="width: 200px; padding: 10px;">
+                    <img src="${c.image}" onerror="this.src='https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=600&q=80'" style="width: 100%; height: 100px; object-fit: cover; border-radius: 8px; margin-bottom: 12px;">
+                    <h4 style="margin: 0; font-size: 1.1rem; color: var(--text-dark);">${c.title}</h4>
+                    <p style="margin: 8px 0; font-size: 0.85rem; color: var(--text-muted);"><i class="fas fa-map-marker-alt"></i> ${c.location}</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid #eee;">
+                        <span style="font-weight: 800; color: var(--primary);">+${c.points} PTS</span>
+                        <a href="https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lon}" target="_blank" class="btn btn-primary btn-sm" style="font-size: 0.7rem; padding: 5px 10px;">
+                            <i class="fas fa-directions"></i> Go
+                        </a>
+                    </div>
                 </div>
             `);
         }
     });
 
-    // Try to get user location
+    // Live Location Tracking
     if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(pos => {
-            const userLat = pos.coords.latitude;
-            const userLon = pos.coords.longitude;
-            
-            map.setView([userLat, userLon], 15); // Zoom in more for satellite
-            
-            // Custom blue pulsing live marker
-            const userIcon = L.divIcon({
-                html: '<div class="user-location-marker"></div>',
-                className: 'custom-div-icon',
-                iconSize: [14, 14],
-                iconAnchor: [7, 7]
-            });
+        // Use cached location
+        if (appState.user.lastLat && appState.user.lastLon) {
+            updateUserMarker(appState.user.lastLat, appState.user.lastLon);
+            map.setView([appState.user.lastLat, appState.user.lastLon], 12);
+        }
 
-            L.marker([userLat, userLon], {icon: userIcon}).addTo(map).bindPopup("<b>You are here</b><br>Live Tracking Active");
-
-            // Add 10km region circle
-            L.circle([userLat, userLon], {
-                color: 'var(--primary)',
-                fillColor: 'var(--primary)',
-                fillOpacity: 0.1,
-                radius: 10000 // 10km
-            }).addTo(map).bindPopup("Your Local Region (10km)");
+        navigator.geolocation.getCurrentPosition((position) => {
+            const userLat = position.coords.latitude;
+            const userLon = position.coords.longitude;
+            appState.user.lastLat = userLat;
+            appState.user.lastLon = userLon;
+            saveState();
+            updateUserMarker(userLat, userLon);
         }, (err) => {
-            console.log("Location access denied or error:", err);
+            console.warn("Location error:", err);
         });
+    }
+
+    function updateUserMarker(lat, lon) {
+        const userIcon = L.divIcon({
+            className: 'user-location-marker',
+            iconSize: [20, 20]
+        });
+        if (window.userMarker) map.removeLayer(window.userMarker);
+        if (window.regionCircle) map.removeLayer(window.regionCircle);
+        window.userMarker = L.marker([lat, lon], {icon: userIcon}).addTo(map);
+        window.regionCircle = L.circle([lat, lon], {
+            color: 'var(--primary)',
+            fillOpacity: 0.1,
+            radius: 10000
+        }).addTo(map);
     }
 }
 
@@ -321,8 +377,31 @@ function renderChallengesPage() {
 function renderLeaderboardPage() {
     const list = document.getElementById('leaderboard-list');
     if (list) {
-        list.innerHTML = appState.leaderboard.map((u, i) => renderLeaderboardItem(u, i)).join('');
+        // Show from rank 4 onwards in the list
+        const remaining = appState.leaderboard.slice(3);
+        list.innerHTML = remaining.map((u, i) => renderLeaderboardItem(u, i + 3)).join('');
     }
+
+    // Populate Podium (Top 3)
+    const podiumData = appState.leaderboard.slice(0, 3);
+    podiumData.forEach((u, i) => {
+        const rankIdx = i + 1;
+        const nameEl = document.getElementById(`top${rankIdx}-name`);
+        const pointsEl = document.getElementById(`top${rankIdx}-points`);
+        const imgEl = document.getElementById(`top${rankIdx}-img`);
+        
+        if (nameEl) nameEl.textContent = u.name;
+        if (pointsEl) pointsEl.textContent = `${u.points.toLocaleString()} pts`;
+        if (imgEl) {
+            const localPath = u.isUser ? appState.user.avatar : `assest/${u.name.toLowerCase()}.jpg`;
+            console.log(`Loading podium image for ${u.name}: ${localPath}`);
+            imgEl.src = localPath;
+            imgEl.onerror = () => {
+                console.warn(`Failed to load ${localPath}, falling back to avatar`);
+                imgEl.src = `https://ui-avatars.com/api/?name=${u.name}&background=${i === 0 ? 'ffd700' : i === 1 ? 'c0c0c0' : 'cd7f32'}&color=000`;
+            };
+        }
+    });
 }
 
 function renderCommunityPage() {
@@ -348,19 +427,21 @@ function renderCommunityPage() {
 
 function renderChallengeCard(c) {
     return `
-        <div class="card">
-            <img src="${c.image}" class="card-img">
-            <div class="card-content">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <span class="badge ${c.status === 'active' ? 'badge-yellow' : 'badge-green'}">${c.status}</span>
-                    <span style="font-weight: 800; color: var(--primary);">+${c.points} PTS</span>
+        <div class="card challenge-card-compact">
+            <div class="card-img-container">
+                <img src="${c.image}" class="card-img" onerror="this.src='https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=600&q=80'">
+                <span class="badge ${c.status === 'active' ? 'badge-yellow' : 'badge-green'} card-status-badge">${c.status}</span>
+            </div>
+            <div class="card-content" style="padding: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <h3 style="font-size: 1rem; margin: 0;">${c.title}</h3>
+                    <span style="font-weight: 800; color: var(--primary); font-size: 0.85rem;">+${c.points} PTS</span>
                 </div>
-                <h3 style="margin-bottom: 5px;">${c.title}</h3>
-                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;"><i class="fas fa-map-marker-alt"></i> ${c.location}</p>
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 15px;"><i class="fas fa-map-marker-alt"></i> ${c.location}</p>
                 ${c.status === 'active' ? `
-                    <button class="btn btn-primary" style="width: 100%;" onclick="openCompleteModal(${c.id})">Complete Cleanup</button>
+                    <button class="btn btn-primary btn-sm" style="width: 100%;" onclick="openCompleteModal(${c.id})">Complete</button>
                 ` : `
-                    <div style="text-align: center; color: var(--primary); font-weight: 700; background: var(--primary-light); padding: 10px; border-radius: 8px;">
+                    <div class="verified-pill">
                         <i class="fas fa-check-circle"></i> Verified
                     </div>
                 `}
@@ -371,20 +452,22 @@ function renderChallengeCard(c) {
 
 function renderLeaderboardItem(u, i) {
     const rank = i + 1;
-    const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
     return `
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 20px; border-bottom: 1px solid var(--border); ${u.isUser ? 'background: #f0fdf4;' : ''}">
+        <div class="lb-hero-card ${u.isUser ? 'is-user' : ''}">
             <div style="display: flex; align-items: center; gap: 20px;">
-                <span style="font-weight: 800; width: 30px;">${rankIcon}</span>
-                <img src="https://ui-avatars.com/api/?name=${u.name}&background=random" style="width: 40px; height: 40px; border-radius: 50%;">
+                <span style="font-weight: 900; width: 30px; font-size: 1.2rem; color: var(--text-muted);">#${rank}</span>
+                <img src="${u.isUser ? appState.user.avatar : `assest/${u.name.toLowerCase()}.jpg`}" 
+                     onload="console.log('Loaded: ' + this.src)" 
+                     onerror="this.src='https://ui-avatars.com/api/?name=${u.name}&background=random'; console.warn('Failed to load: ' + this.src)" 
+                     style="width: 45px; height: 45px; border-radius: 50%; border: 2px solid var(--border); object-fit: cover;">
                 <div>
-                    <h4 style="font-size: 1rem;">${u.name} ${u.isUser ? '(You)' : ''}</h4>
+                    <h4 style="font-size: 1rem; margin: 0;">${u.name} ${u.isUser ? '<span class="badge badge-green" style="font-size: 0.6rem; margin-left: 5px;">YOU</span>' : ''}</h4>
                     <p style="font-size: 0.75rem; color: var(--text-muted);">${u.cleanups} cleanups</p>
                 </div>
             </div>
             <div style="text-align: right;">
-                <span style="font-weight: 800; color: var(--primary); font-size: 1.1rem;">${u.points.toLocaleString()}</span>
-                <p style="font-size: 0.7rem; color: var(--text-muted); font-weight: 600;">POINTS</p>
+                <span style="font-weight: 800; color: var(--primary); font-size: 1.2rem;">${u.points.toLocaleString()}</span>
+                <p style="font-size: 0.65rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Points</p>
             </div>
         </div>
     `;
@@ -515,6 +598,100 @@ function previewImage(input, imgId) {
         reader.readAsDataURL(file);
     }
 }
+
+// --- AI Report Logic ---
+function handleCapture(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const preview = document.getElementById('before-preview');
+            const wrapper = document.getElementById('preview-wrapper');
+            const camBtn = document.querySelector('.camera-btn-container');
+            
+            preview.src = e.target.result;
+            wrapper.style.display = 'block';
+            camBtn.style.display = 'none'; // Hide camera button after upload
+            
+            // Simulate Geo-tagging
+            const locInput = document.getElementById('task-location-input');
+            locInput.value = "Detecting GPS...";
+            
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    const lat = pos.coords.latitude.toFixed(4);
+                    const lon = pos.coords.longitude.toFixed(4);
+                    locInput.value = `${lat}, ${lon} (Verified)`;
+                    locInput.style.color = "var(--primary)";
+                    locInput.style.fontWeight = "bold";
+                }, () => {
+                    locInput.value = "12.8904, 75.0312 (Bantwal Default)";
+                });
+            }
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function deleteCapture() {
+    const wrapper = document.getElementById('preview-wrapper');
+    const camBtn = document.querySelector('.camera-btn-container');
+    const fileInput = document.getElementById('before-photo-input');
+    const locInput = document.getElementById('task-location-input');
+    
+    wrapper.style.display = 'none';
+    camBtn.style.display = 'flex';
+    fileInput.value = "";
+    locInput.value = "";
+}
+
+// Update form submission for AI simulation
+document.getElementById('challenge-form')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formContainer = document.getElementById('report-form-container');
+    const aiContainer = document.getElementById('ai-analyzing-container');
+    const successContainer = document.getElementById('report-success-container');
+    const statusText = document.getElementById('ai-status-text');
+
+    // Step 1: Show AI Analyzing
+    formContainer.style.display = 'none';
+    aiContainer.style.display = 'block';
+
+    setTimeout(() => {
+        statusText.textContent = "Scanning terrain for pollution type...";
+    }, 1500);
+
+    setTimeout(() => {
+        statusText.textContent = "Matching pollution with satellite data...";
+    }, 3000);
+
+    setTimeout(() => {
+        statusText.textContent = "Calculating regional impact score...";
+    }, 4500);
+
+    // Step 2: Show Done (6 seconds total)
+    setTimeout(() => {
+        aiContainer.style.display = 'none';
+        successContainer.style.display = 'block';
+        
+        // Add to app state (simulated)
+        const newId = appState.challenges.length + 1;
+        const newChallenge = {
+            id: newId,
+            title: document.getElementById('task-name-input').value,
+            location: "Bantwal Region",
+            status: "active",
+            image: document.getElementById('before-preview').src,
+            points: 40,
+            lat: 12.89 + (Math.random() * 0.05),
+            lon: 75.03 + (Math.random() * 0.05)
+        };
+        
+        appState.challenges.push(newChallenge);
+        saveState();
+        initApp();
+    }, 6000);
+});
 
 function saveState() {
     localStorage.setItem('eco_hero_state', JSON.stringify(appState));

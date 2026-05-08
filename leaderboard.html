@@ -63,11 +63,45 @@
                 </div>
             </header>
 
-            <div class="dashboard-section">
-                <div class="card" style="padding: 0;">
-                    <div id="leaderboard-list">
-                        <!-- Populated by JS -->
+            <!-- Regional Podium -->
+            <div class="podium-section">
+                <div class="podium-item second">
+                    <div class="podium-avatar">
+                        <img src="https://ui-avatars.com/api/?name=PlanetGuardian&background=random" id="top2-img">
+                        <span class="podium-rank">2</span>
                     </div>
+                    <h3 id="top2-name">PlanetGuardian</h3>
+                    <p id="top2-points">950 pts</p>
+                    <div class="podium-base silver"></div>
+                </div>
+                <div class="podium-item first">
+                    <div class="podium-avatar">
+                        <div class="crown"><i class="fas fa-crown"></i></div>
+                        <img src="https://ui-avatars.com/api/?name=EcoSentinel&background=random" id="top1-img">
+                        <span class="podium-rank">1</span>
+                    </div>
+                    <h3 id="top1-name">EcoSentinel</h3>
+                    <p id="top1-points">1,200 pts</p>
+                    <div class="podium-base gold"></div>
+                </div>
+                <div class="podium-item third">
+                    <div class="podium-avatar">
+                        <img src="https://ui-avatars.com/api/?name=GreenPath&background=random" id="top3-img">
+                        <span class="podium-rank">3</span>
+                    </div>
+                    <h3 id="top3-name">GreenPath</h3>
+                    <p id="top3-points">820 pts</p>
+                    <div class="podium-base bronze"></div>
+                </div>
+            </div>
+
+            <div class="dashboard-section">
+                <div class="section-head">
+                    <h2>Region Rank List</h2>
+                    <span class="badge badge-green">Live Updates</span>
+                </div>
+                <div id="leaderboard-list">
+                    <!-- Populated by JS -->
                 </div>
             </div>
         </main>
