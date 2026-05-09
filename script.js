@@ -47,6 +47,10 @@ if (!localStorage.getItem('eco_hero_state')) {
     localStorage.setItem('eco_hero_state', JSON.stringify(appState));
 }
 
+// Maintenance: Remove "gastic" challenge if it exists in local state
+appState.challenges = appState.challenges.filter(c => c.title.toLowerCase() !== 'gastic');
+saveState();
+
 function getRankBadge(level) {
     if (level >= 20) return { name: 'Platinum', class: 'rank-platinum', icon: '💎' };
     if (level >= 10) return { name: 'Gold', class: 'rank-gold', icon: '🥇' };
@@ -120,8 +124,7 @@ function initApp() {
     }
 
     // Attach global form listeners if they exist on the page
-    const challengeForm = document.getElementById('challenge-form');
-    if (challengeForm) challengeForm.addEventListener('submit', handleCreateChallenge);
+    // (Consolidated listener at the end of file)
 
     const profileForm = document.getElementById('profile-form');
     if (profileForm) profileForm.addEventListener('submit', handleProfileUpdate);
@@ -431,6 +434,11 @@ function renderChallengeCard(c) {
             <div class="card-img-container">
                 <img src="${c.image}" class="card-img" onerror="this.src='https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=600&q=80'">
                 <span class="badge ${c.status === 'active' ? 'badge-yellow' : 'badge-green'} card-status-badge">${c.status}</span>
+                ${(c.isUserUploaded || c.id > 1000) ? `
+                    <button class="delete-challenge-btn" onclick="deleteChallenge(event, ${c.id})" title="Delete Challenge">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                ` : ''}
             </div>
             <div class="card-content" style="padding: 15px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -528,20 +536,7 @@ function handleProfileUpdate(e) {
     location.reload();
 }
 
-function handleCreateChallenge(e) {
-    e.preventDefault();
-    const newC = {
-        id: Date.now(),
-        title: document.getElementById('task-name-input').value,
-        location: document.getElementById('task-location-input').value,
-        status: 'active',
-        image: document.getElementById('before-preview').src || "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=600&q=80",
-        points: 25
-    };
-    appState.challenges.unshift(newC);
-    saveState();
-    location.reload();
-}
+// (Consolidated into AI reporting logic)
 
 function handleCreateCommunity(e) {
     e.preventDefault();
@@ -567,12 +562,25 @@ document.getElementById('complete-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
     const c = appState.challenges.find(ch => ch.id === window.currentChallengeId);
     if (c) {
-        c.status = 'completed';
-        appState.user.points += c.points;
-        appState.user.cleanups += 1;
-        saveState();
-        alert("Cleanup Verified! You earned points.");
-        location.reload();
+        const btn = document.getElementById('verify-submit-btn');
+        if (btn) {
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying with AI...';
+            btn.style.pointerEvents = 'none';
+        }
+
+        setTimeout(() => {
+            c.status = 'completed';
+            appState.user.points += c.points || 40;
+            appState.user.cleanups += 1;
+            saveState();
+            const pointsModal = document.getElementById('points-modal');
+            if (pointsModal) {
+                pointsModal.style.display = 'flex';
+            } else {
+                alert("Verification Successful! You earned 40 EcoPoints.");
+                location.reload();
+            }
+        }, 3000);
     }
 });
 
@@ -596,6 +604,41 @@ function previewImage(input, imgId) {
             img.style.display = 'block';
         };
         reader.readAsDataURL(file);
+    }
+}
+
+function handleVerificationCapture(input, imgId, statusId, boxId) {
+    const file = input.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = document.getElementById(imgId);
+            const container = document.getElementById(imgId + '-container');
+            const box = document.getElementById(boxId);
+            const status = document.getElementById(statusId);
+            
+            img.src = e.target.result;
+            if (container) container.style.display = 'block';
+            if (box) box.style.display = 'none';
+            if (status) {
+                status.textContent = "UPLOADED";
+                status.style.color = "var(--primary)";
+            }
+            
+            checkVerificationReady();
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function checkVerificationReady() {
+    const beforeImg = document.getElementById('before-cleanup-input').files[0];
+    const afterImg = document.getElementById('after-cleanup-input').files[0];
+    const submitBtn = document.getElementById('verify-submit-btn');
+    
+    if (beforeImg && afterImg && submitBtn) {
+        submitBtn.style.opacity = "1";
+        submitBtn.style.pointerEvents = "auto";
     }
 }
 
@@ -644,6 +687,15 @@ function deleteCapture() {
     locInput.value = "";
 }
 
+function deleteChallenge(event, id) {
+    event.stopPropagation();
+    if (confirm("Are you sure you want to delete this challenge?")) {
+        appState.challenges = appState.challenges.filter(c => c.id !== id);
+        saveState();
+        location.reload();
+    }
+}
+
 // Update form submission for AI simulation
 document.getElementById('challenge-form')?.addEventListener('submit', function(e) {
     e.preventDefault();
@@ -653,44 +705,50 @@ document.getElementById('challenge-form')?.addEventListener('submit', function(e
     const successContainer = document.getElementById('report-success-container');
     const statusText = document.getElementById('ai-status-text');
 
+    const title = document.getElementById('task-name-input').value;
+    const locationVal = document.getElementById('task-location-input').value || "Unknown Region";
+    const imageSrc = document.getElementById('before-preview').src || "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=600&q=80";
+
     // Step 1: Show AI Analyzing
-    formContainer.style.display = 'none';
-    aiContainer.style.display = 'block';
+    if (formContainer) formContainer.style.display = 'none';
+    if (aiContainer) aiContainer.style.display = 'block';
 
-    setTimeout(() => {
-        statusText.textContent = "Scanning terrain for pollution type...";
-    }, 1500);
+    if (statusText) {
+        setTimeout(() => { statusText.textContent = "Scanning terrain for pollution type..."; }, 1000);
+        setTimeout(() => { statusText.textContent = "Matching pollution with satellite data..."; }, 2000);
+        setTimeout(() => { statusText.textContent = "Calculating regional impact score..."; }, 3000);
+    }
 
+    // Step 2: Show Done (4 seconds total for better UX)
     setTimeout(() => {
-        statusText.textContent = "Matching pollution with satellite data...";
-    }, 3000);
-
-    setTimeout(() => {
-        statusText.textContent = "Calculating regional impact score...";
-    }, 4500);
-
-    // Step 2: Show Done (6 seconds total)
-    setTimeout(() => {
-        aiContainer.style.display = 'none';
-        successContainer.style.display = 'block';
+        if (aiContainer) aiContainer.style.display = 'none';
+        if (successContainer) successContainer.style.display = 'block';
         
-        // Add to app state (simulated)
-        const newId = appState.challenges.length + 1;
+        // Add to app state
         const newChallenge = {
-            id: newId,
-            title: document.getElementById('task-name-input').value,
-            location: "Bantwal Region",
+            id: Date.now(),
+            title: title,
+            location: locationVal,
             status: "active",
-            image: document.getElementById('before-preview').src,
+            image: imageSrc,
             points: 40,
             lat: 12.89 + (Math.random() * 0.05),
-            lon: 75.03 + (Math.random() * 0.05)
+            lon: 75.03 + (Math.random() * 0.05),
+            isUserUploaded: true
         };
         
-        appState.challenges.push(newChallenge);
+        appState.challenges.unshift(newChallenge); // Add to top
         saveState();
-        initApp();
-    }, 6000);
+        
+        // Add a handler to the success button to reload the page
+        const successBtn = successContainer.querySelector('.btn');
+        if (successBtn) {
+            successBtn.onclick = () => {
+                toggleModal('report-modal', false);
+                window.location.reload(); // Refresh to show new challenge everywhere
+            };
+        }
+    }, 4000);
 });
 
 function saveState() {

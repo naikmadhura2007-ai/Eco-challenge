@@ -63,11 +63,7 @@
                     <h1>Active Challenges</h1>
                     <p>Find hotspots near you and start your mission.</p>
                 </div>
-                <div class="header-actions">
-                    <button class="btn btn-primary" onclick="toggleModal('report-modal', true)">
-                        <i class="fas fa-bullhorn"></i> Report New Area
-                    </button>
-                </div>
+
             </header>
 
             <div class="dashboard-section">
@@ -108,20 +104,79 @@
     </div>
 
     <div id="complete-modal" class="modal-overlay">
-        <div class="modal-content">
+        <div class="modal-content modal-lg">
             <div class="modal-header">
-                <h2>Complete Cleanup</h2>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="background: var(--primary-light); color: var(--primary); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-check-double"></i>
+                    </div>
+                    <div>
+                        <h2 style="margin: 0; font-size: 1.5rem;">Cleanup Verification</h2>
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">Submit evidence to claim your rewards</p>
+                    </div>
+                </div>
                 <button class="close-modal" onclick="toggleModal('complete-modal', false)">&times;</button>
             </div>
+            
             <form id="complete-form">
-                <div class="form-group">
-                    <label>Upload After Photo (Geo-Tag Required)</label>
-                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">Our AI verifies the location matches the reported area.</p>
-                    <input type="file" id="after-photo-input" class="form-control" accept="image/*" onchange="previewImage(this, 'after-preview')" required>
-                    <img id="after-preview" style="width: 100%; border-radius: 10px; margin-top: 10px; display: none;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 25px;">
+                    <!-- Before Photo -->
+                    <div class="form-group">
+                        <label style="display: flex; justify-content: space-between;">
+                            <span>Before Cleaning</span>
+                            <span id="before-status" style="color: var(--text-muted); font-size: 0.7rem; font-weight: 800;">PENDING</span>
+                        </label>
+                        <div class="camera-btn-container" onclick="document.getElementById('before-cleanup-input').click()" id="before-upload-box">
+                            <i class="fas fa-history"></i>
+                            <span style="font-size: 0.8rem; font-weight: 700;">Upload Initial State</span>
+                        </div>
+                        <input type="file" id="before-cleanup-input" style="display:none;" accept="image/*" onchange="handleVerificationCapture(this, 'before-preview', 'before-status', 'before-upload-box')">
+                        <div id="before-preview-container" style="display:none; margin-top: 10px; position: relative;">
+                            <img id="before-preview" style="width: 100%; height: 160px; object-fit: cover; border-radius: 12px; border: 2px solid var(--primary);">
+                            <div style="position: absolute; bottom: 10px; right: 10px; background: var(--primary); color: white; padding: 4px 8px; border-radius: 6px; font-size: 0.6rem; font-weight: 800;">VERIFIED</div>
+                        </div>
+                    </div>
+
+                    <!-- After Photo -->
+                    <div class="form-group">
+                        <label style="display: flex; justify-content: space-between;">
+                            <span>After Cleaning</span>
+                            <span id="after-status" style="color: var(--text-muted); font-size: 0.7rem; font-weight: 800;">PENDING</span>
+                        </label>
+                        <div class="camera-btn-container" onclick="document.getElementById('after-cleanup-input').click()" id="after-upload-box">
+                            <i class="fas fa-sparkles"></i>
+                            <span style="font-size: 0.8rem; font-weight: 700;">Upload Result</span>
+                        </div>
+                        <input type="file" id="after-cleanup-input" style="display:none;" accept="image/*" onchange="handleVerificationCapture(this, 'after-preview', 'after-status', 'after-upload-box')">
+                        <div id="after-preview-container" style="display:none; margin-top: 10px; position: relative;">
+                            <img id="after-preview" style="width: 100%; height: 160px; object-fit: cover; border-radius: 12px; border: 2px solid var(--primary);">
+                            <div style="position: absolute; bottom: 10px; right: 10px; background: var(--primary); color: white; padding: 4px 8px; border-radius: 6px; font-size: 0.6rem; font-weight: 800;">VERIFIED</div>
+                        </div>
+                    </div>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Verify & Claim Points</button>
+
+                <div style="background: var(--bg-light); padding: 15px; border-radius: 12px; margin-bottom: 25px; border-left: 4px solid var(--primary);">
+                    <p style="font-size: 0.8rem; color: var(--text-dark); font-weight: 600; margin: 0;">
+                        <i class="fas fa-info-circle" style="color: var(--primary); margin-right: 5px;"></i>
+                        AI Verification: Our system will compare both images and verify geo-tags to approve your 40 PTS.
+                    </p>
+                </div>
+
+                <button type="submit" id="verify-submit-btn" class="btn btn-primary" style="width: 100%; justify-content: center; opacity: 0.5; pointer-events: none;">
+                    Verify & Claim Points
+                </button>
             </form>
+        </div>
+    </div>
+
+    <div id="points-modal" class="modal-overlay">
+        <div class="modal-content" style="text-align: center; max-width: 400px; padding: 50px 40px;">
+            <div style="background: var(--primary-light); color: var(--primary); width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; font-size: 2.5rem; animation: pulse-blue 2s infinite;">
+                <i class="fas fa-coins"></i>
+            </div>
+            <h2 style="margin: 0 0 10px; font-size: 1.8rem;">Victory!</h2>
+            <p style="color: var(--text-muted); margin-bottom: 30px; font-weight: 500;">Verification Successful!<br>You've earned <span style="color: var(--primary); font-weight: 800;">40 EcoPoints</span>.</p>
+            <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="location.reload()">Continue Mission</button>
         </div>
     </div>
 
