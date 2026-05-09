@@ -5,14 +5,95 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Welcome to EcoHero</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <style>
+        :root {
+            --primary: #10b981;
+            --primary-dark: #065f46;
+            --primary-light: #d1fae5;
+            --white: #ffffff;
+            --radius-lg: 24px;
+            --radius-md: 12px;
+            --shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            --border: #e2e8f0;
+            --text-muted: #64748b;
+        }
+
         body {
-            height: 100vh;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: var(--bg-gradient);
+            background: #020617; /* Dark space background */
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Atmospheric Background */
+        .bg-atmosphere {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            background: 
+                radial-gradient(circle at 50% 110%, #064e3b 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, #022c22 0%, transparent 40%),
+                #020617;
+        }
+
+        #particle-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .tree-container {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 800px;
+            height: 100vh;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        #tree-svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.1));
+        }
+
+        .bloom-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.1) 0%, transparent 70%);
+            z-index: 3;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 2s ease;
+        }
+        .bloom-overlay.active { opacity: 1; }
+
+        .auth-container {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            width: 1000px;
+            height: 650px;
+            border-radius: var(--radius-lg);
+            box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.5);
             overflow: hidden;
         }
         .auth-container {
@@ -105,7 +186,25 @@
         }
     </style>
 </head>
-<body>
+    <div class="bg-atmosphere"></div>
+    <canvas id="particle-canvas"></canvas>
+    <div class="bloom-overlay" id="bloom-overlay"></div>
+    
+    <div class="tree-container">
+        <svg id="tree-svg" viewBox="0 0 800 1000">
+            <!-- Layers for procedural growth -->
+            <g id="roots-layer"></g>
+            <g id="trunk-layer"></g>
+            <g id="branches-layer"></g>
+            <g id="twigs-layer"></g>
+            <g id="leaves-layer"></g>
+            
+            <!-- Seed / Initial stage -->
+            <path class="seed-path" d="M 400 850 Q 400 840 410 835" stroke="#4ade80" stroke-width="3" fill="none" opacity="0" />
+            <path class="seed-path" d="M 400 850 Q 400 840 390 835" stroke="#4ade80" stroke-width="3" fill="none" opacity="0" />
+        </svg>
+    </div>
+
     <div class="auth-container">
         <div class="auth-hero">
             <i class="fas fa-leaf" style="font-size: 4rem; margin-bottom: 30px;"></i>
@@ -270,6 +369,172 @@
 
         document.getElementById('login-form').addEventListener('submit', handleAuth);
         document.getElementById('signup-form').addEventListener('submit', handleAuth);
+
+        // --- TREE ANIMATION LOGIC ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const pathsMap = { roots: [], trunk: [], branches: [], twigs: [], leaves: [] };
+
+            function createTreePath(parent, startX, startY, endX, endY, ctrlX, ctrlY, width, stroke, category) {
+                const strokes = category === 'trunk' ? 3 : (category === 'branches' ? 2 : 1);
+                for (let i = 0; i < strokes; i++) {
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    let cx = ctrlX + (i > 0 ? (Math.random()*6 - 3) : 0);
+                    let cy = ctrlY + (i > 0 ? (Math.random()*6 - 3) : 0);
+                    let ex = endX + (i > 0 ? (Math.random()*2 - 1) : 0);
+                    let ey = endY + (i > 0 ? (Math.random()*2 - 1) : 0);
+                    const d = `M ${startX} ${startY} Q ${cx} ${cy} ${ex} ${ey}`;
+                    path.setAttribute('d', d);
+                    path.setAttribute('stroke', stroke);
+                    path.setAttribute('stroke-width', width * (i === 0 ? 1 : 0.4));
+                    path.setAttribute('fill', 'none');
+                    path.setAttribute('stroke-linecap', 'round');
+                    path.setAttribute('opacity', i === 0 ? '0.8' : '0.4');
+                    parent.appendChild(path);
+                    const length = path.getTotalLength();
+                    path.style.strokeDasharray = length;
+                    path.style.strokeDashoffset = length;
+                    pathsMap[category].push({ path, length });
+                }
+            }
+
+            function createLeaf(parent, x, y, size, category) {
+                const leaf = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                const d = `M ${x} ${y} C ${x-size/2} ${y-size/2} ${x-size/4} ${y-size} ${x} ${y-size} C ${x+size/4} ${y-size} ${x+size/2} ${y-size/2} ${x} ${y}`;
+                leaf.setAttribute('d', d);
+                leaf.setAttribute('fill', '#4ade80');
+                leaf.setAttribute('opacity', '0.7');
+                leaf.style.transformOrigin = `${x}px ${y}px`;
+                leaf.style.transform = 'scale(0)';
+                parent.appendChild(leaf);
+                pathsMap[category].push(leaf);
+            }
+
+            function buildFractal(startX, startY, length, angle, depth, maxDepth, category) {
+                if (depth === 0) return;
+                const endX = startX + Math.cos(angle) * length;
+                const endY = startY + Math.sin(angle) * length;
+                const ctrlX = startX + Math.cos(angle) * length * 0.5 + (Math.random() * 20 - 10);
+                const ctrlY = startY + Math.sin(angle) * length * 0.5 + (Math.random() * 20 - 10);
+                let currentCategory = category;
+                let width = depth * 1.5;
+                let stroke = '#6b7f6b'; 
+                let parentLayer;
+                
+                if (category === 'roots') {
+                    parentLayer = document.getElementById('roots-layer');
+                    width = depth * 1.5;
+                    stroke = '#455045';
+                } else {
+                    if (depth === maxDepth) {
+                        currentCategory = 'trunk';
+                        parentLayer = document.getElementById('trunk-layer');
+                        stroke = '#6b7f6b';
+                        width = 12;
+                    } else if (depth > 2) {
+                        currentCategory = 'branches';
+                        parentLayer = document.getElementById('branches-layer');
+                        stroke = '#7a8c7a';
+                        width = depth * 2;
+                    } else {
+                        currentCategory = 'twigs';
+                        parentLayer = document.getElementById('twigs-layer');
+                        stroke = '#8b9d8b';
+                        width = depth * 1.2;
+                    }
+                }
+                createTreePath(parentLayer, startX, startY, endX, endY, ctrlX, ctrlY, width, stroke, currentCategory);
+                if (currentCategory !== 'roots' && depth <= 2 && Math.random() > 0.15) {
+                    createLeaf(document.getElementById('leaves-layer'), endX, endY, 15 + Math.random()*15, 'leaves');
+                }
+                const numBranches = category === 'roots' ? 2 : (depth > 1 ? 2 + Math.floor(Math.random() * 2) : 2);
+                for (let i = 0; i < numBranches; i++) {
+                    let newAngle = angle + (Math.random() * 0.8 - 0.4) * (Math.PI / 2);
+                    if (i === 0) newAngle = angle - 0.2 - Math.random()*0.35;
+                    if (i === 1) newAngle = angle + 0.2 + Math.random()*0.35;
+                    let newLength = length * (0.65 + Math.random() * 0.2);
+                    buildFractal(endX, endY, newLength, newAngle, depth - 1, maxDepth, category);
+                }
+            }
+
+            // Seed Generation
+            buildFractal(400, 850, 180, -Math.PI / 2, 5, 5, 'tree');
+            buildFractal(400, 850, 80, Math.PI / 2 + 0.2, 3, 3, 'roots');
+            buildFractal(400, 850, 80, Math.PI / 2 - 0.2, 3, 3, 'roots');
+
+            // Interaction Listeners for inputs
+            let treeState = 0;
+            const emailInp = document.querySelector('input[type="email"]');
+            const passInp = document.querySelector('input[type="password"]');
+            const subBtn = document.querySelector('button[type="submit"]');
+
+            emailInp.addEventListener('focus', () => {
+                if (treeState < 1) {
+                    treeState = 1;
+                    gsap.to(pathsMap.roots.map(p => p.path), { strokeDashoffset: 0, duration: 2, stagger: 0.1 });
+                    gsap.to(pathsMap.trunk.map(p => p.path), { strokeDashoffset: 0, duration: 2.5 });
+                }
+            });
+
+            emailInp.addEventListener('input', () => {
+                if (treeState < 2 && emailInp.value.length > 2) {
+                    treeState = 2;
+                    gsap.to(pathsMap.branches.map(p => p.path), { strokeDashoffset: 0, duration: 3, stagger: 0.1 });
+                }
+            });
+
+            passInp.addEventListener('focus', () => {
+                if (treeState < 3) {
+                    treeState = 3;
+                    gsap.to(pathsMap.twigs.map(p => p.path), { strokeDashoffset: 0, duration: 2, stagger: 0.05 });
+                    gsap.to(pathsMap.leaves, { scale: 1, duration: 2, stagger: 0.02, ease: "back.out(1.5)", delay: 0.5 });
+                }
+            });
+
+            // Particles system
+            const canvas = document.getElementById('particle-canvas');
+            const ctx = canvas.getContext('2d');
+            let particles = [];
+            let isAlive = false;
+
+            function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+            window.addEventListener('resize', resize); resize();
+
+            class Particle {
+                constructor() { this.reset(); }
+                reset() {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() * canvas.height;
+                    this.size = Math.random() * 2 + 0.5;
+                    this.speedX = (Math.random() - 0.5) * 0.3;
+                    this.speedY = (Math.random() - 0.5) * 0.3 - 0.1;
+                    this.life = Math.random() * 0.5 + 0.1;
+                    this.color = `rgba(255, 255, 255, ${this.life * 0.3})`;
+                }
+                update() {
+                    this.x += this.speedX; this.y += this.speedY;
+                    if (this.y < 0 || this.x < 0 || this.x > canvas.width) this.reset();
+                }
+                draw() {
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+                }
+            }
+            for (let i = 0; i < 80; i++) particles.push(new Particle());
+            function animateParticles() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => { p.update(); p.draw(); });
+                requestAnimationFrame(animateParticles);
+            }
+            animateParticles();
+
+            // Parallax
+            document.addEventListener('mousemove', (e) => {
+                const x = (window.innerWidth / 2 - e.pageX) / 80;
+                const y = (window.innerHeight / 2 - e.pageY) / 80;
+                gsap.to(".auth-container", { rotationY: x, rotationX: y, duration: 1.5 });
+                gsap.to("#tree-svg", { x: -x * 10, y: -y * 10, duration: 1.5 });
+            });
+        });
     </script>
 </body>
 </html>
